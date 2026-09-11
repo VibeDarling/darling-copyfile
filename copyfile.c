@@ -4186,7 +4186,7 @@ static int copyfile_unpack(copyfile_state_t s)
 								error = -1;
 								goto exit;
 							}
-						} else {
+						} else if (errorcode != ENOTSUP && errorcode != EPERM) {
 							error = -1;
 							goto exit;
 						}
@@ -4260,8 +4260,10 @@ static int copyfile_unpack(copyfile_state_t s)
 					s->err = ECANCELED;
 					goto exit;
 				}
+			} else if (errno != ENOTSUP && errno != EPERM) {
+				goto exit;
 			}
-			goto exit;
+			error = 0;
 		} else if (s->statuscb) {
 			int rv;
 			s->xattr_name = (char *)XATTR_FINDERINFO_NAME;
@@ -4352,13 +4354,11 @@ skip_fi:
 			 * the kernel creates an AppleDouble file that -- for compatabilty
 			 * reasons -- has a resource fork containing nothing but a rsrcfork_header_t
 			 * structure that says there are no resources.  So, if fsetxattr has
-			 * failed, and the resource fork is that empty structure, *and* the
-			 * target file is a directory, then we do nothing with it.
+			 * failed, and the resource fork is that empty structure, then we do nothing with it.
 			 */
 			if ((bytes == sizeof(rsrcfork_header_t)) &&
-				((sb.st_mode & S_IFMT) == S_IFDIR)  &&
 				(memcmp(rsrcforkdata, &empty_rsrcfork_header, bytes) == 0)) {
-				copyfile_debug(2, "not setting empty resource fork on directory");
+				copyfile_debug(2, "not setting empty resource fork");
 				error = errno = 0;
 				goto bad;
 			}
@@ -4371,6 +4371,10 @@ skip_fi:
 					error = errno = 0;
 					goto bad;
 				}
+			}
+			if (errno == ENOTSUP || errno == EPERM) {
+				error = errno = 0;
+				goto bad;
 			}
 			copyfile_debug(1, "error %d setting resource fork attribute", error);
 			error = -1;
@@ -4408,7 +4412,7 @@ skip_fi:
 			free(rsrcforkdata);
 	}
 
-	if (COPYFILE_STAT & s->flags)
+	if (error == 0 && (COPYFILE_STAT & s->flags))
 	{
 		error = copyfile_stat(s);
 	}
@@ -4633,7 +4637,7 @@ static int copyfile_pack(copyfile_state_t s)
 		error = -1;
 		goto exit;
 	} else {
-		endnamebuf = ((char*)attrnamebuf) + ATTR_MAX_HDR_SIZE;
+		endnamebuf = attrnamebuf;
 	}
 
 	/*

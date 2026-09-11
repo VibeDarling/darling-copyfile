@@ -27,3 +27,13 @@ target_link_libraries(system_copyfile PRIVATE system_kernel system_c system_bloc
 make_fat(system_copyfile)
 
 install(TARGETS system_copyfile DESTINATION libexec/darling/usr/lib/system)
+
+add_darling_executable(copyfile_unpack_test
+	copyfile_unpack_test.c
+)
+target_link_libraries(copyfile_unpack_test
+	system_copyfile
+)
+
+enable_testing()
+add_test(NAME copyfile_unpack_test COMMAND darling shell /Volumes/SystemRoot$<TARGET_FILE:copyfile_unpack_test>)
